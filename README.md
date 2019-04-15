@@ -62,7 +62,10 @@ The ‘unqork’ service deployed into the ECS cluster.
 
 1. Clone this repo
 
-      `git clone https://github.com/mullinsr/unqork-ecs-ansible-cloudformation-demo.git && cd unqork-ecs-ansible-cloudformation-demo/`
+      ```
+      git clone https://github.com/mullinsr/unqork-ecs-ansible-cloudformation-demo.git \
+      && cd unqork-ecs-ansible-cloudformation-demo/
+      ```
 
 2. Ensure you are working off the correct branch
 
@@ -71,7 +74,9 @@ The ‘unqork’ service deployed into the ECS cluster.
 3. Ensure your AWS credentials and region are exported to your shell. 
 
       `export AWS_ACCESS_KEY_ID=accessKey`
+
       `export AWS_SECRET_ACCESS_KEY=secretKey`
+
       `export AWS_DEFAULT_REGION=us-east-1`
 
 4. Ensure you have AWS access & confirm that there are no existing *active* (StackStatus) CloudFormation stacks.
