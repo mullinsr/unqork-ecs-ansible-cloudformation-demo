@@ -1,0 +1,49 @@
+############################################################
+# This CF template creates the default IAM role required
+# by all ECS tasks. Since this role may not be available by 
+# default, we need to create it ourselves. 
+############################################################
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+
+  # BEGIN ECS TASK EXECUTION ROLE
+  DefaultEcsTaskExecutionRole: 
+    # The IAM Role required for all ECS Tasks
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecs-default-task-execution-role
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Sid: ""
+            Effect: "Allow"
+            Principal: 
+              Service: "ecs-tasks.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies: 
+        - 
+          PolicyName: ecs-default-task-execution-role-policy
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Sid: ""
+                Effect: "Allow"
+                Action: 
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:BatchGetImage"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+
+Outputs:
+
+  DefaultEcsTaskExecutionRoleArn:
+    Value: !GetAtt DefaultEcsTaskExecutionRole.Arn
+    Description:  The ARN for the default ECS task execution role
+    Export: 
+      Name: ecs-default-task-execution-role-arn

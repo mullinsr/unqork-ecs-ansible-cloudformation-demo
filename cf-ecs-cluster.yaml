@@ -1,0 +1,150 @@
+######################################################################
+# This CF template creates all required resources needed to
+# create a new ECS cluster. Specifically it creates the following:
+#
+# 1. The ECS cluster. 
+#
+# 2. The ALB associated with this cluster. All future services
+#    assigned to this cluster will receive traffic via this ALB.
+#
+# 3. The SecurityGroup assigned to the ALB to allow inbound HTTP
+#    internet traffic.
+#
+# 4. The SecurityGroup that will be consumed by all future services
+#    assigned to this cluster to receive inbound traffic `exclusively`
+#    from this cluster's ALB. 
+#
+# 5. The ALB listener assigned to the ALB to listen for HTTP traffic. 
+#    New services will be assigned to a unique TargetGroup, which will
+#    all share this same listener. 
+#
+######################################################################
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  environment:
+    Type: String
+    Default: dev
+    Description: The environment associated with this cluster. Default is dev.
+
+  clusterName:
+    Type: String
+    Description: The name of the ECS cluster to create.
+
+  vpcId:
+    Type: String
+    Description: The VPC ID to deploy the cluster into.  
+
+  publicSubnetIds:
+    Type: CommaDelimitedList
+    Description: The public subnet IDs to associate with the cluster ALB. 
+
+
+Resources:
+
+  # BEGIN ECS CLUSTER RESOURCE
+  ECSCluster:
+    # The ECS cluster hosting our service(s). 
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Join ['-', [!Ref environment, !Ref clusterName]]
+
+  # BEGIN ECS ALB SECURITY GROUP RESOURCE
+  ALBSecurityGroup:
+    # The security group consumed by this cluster's ALB. 
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupName: !Join ['-', [!Ref environment, 'ecs', !Ref clusterName, 'alb', 'sg']]
+      GroupDescription: "ALB Security Group"
+      SecurityGroupIngress:
+        - 
+          CidrIp: 0.0.0.0/0
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      VpcId: !Ref vpcId
+
+  # BEGIN ECS SERVICE SECURITY GROUP RESOURCE
+  ECSServiceSecurityGroup:
+    # The security group consumed by this cluster's service(s). 
+    # It can receive all traffic that originates from the ALB only.
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: ALBSecurityGroup
+    Properties: 
+      GroupName: !Join ['-', [!Ref environment, 'ecs', !Ref clusterName, 'service', 'sg']]
+      GroupDescription: "ECS Service Security Group"
+      SecurityGroupIngress:
+        - 
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          FromPort: 0 
+          IpProtocol: tcp
+          ToPort: 65535
+      VpcId: !Ref vpcId
+
+  ECSLoadBalancer:
+    # The ECS cluster ALB to distribute traffic to our service(s). 
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: ALBSecurityGroup
+    Properties:
+      IpAddressType: ipv4
+      Name: !Join ['-', [!Ref environment, 'ecs', !Ref clusterName, 'alb']]
+      Scheme: internet-facing
+      SecurityGroups: 
+        - !Ref ALBSecurityGroup
+      Subnets: !Ref publicSubnetIds
+      Type: application
+
+  # BEGIN ALB LISTENER RESOURCE
+  ECSLoadBalancerListener:
+    # The primary HTTP listener assigned to the ALB.
+    # The services will be associated to their own TargetGroup, which
+    # will all share this same listener. 
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: ECSLoadBalancer
+    Properties:
+      DefaultActions:
+        - 
+          Type: fixed-response
+          FixedResponseConfig: 
+            StatusCode: 200
+      LoadBalancerArn: !Ref ECSLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+Outputs:
+
+  AlbArn:
+    Value: !Ref ECSLoadBalancer
+    Export:
+      Name: !Join ['-', [!Ref environment, 'ecs', !Ref clusterName, 'alb', 'arn']]
+
+  AlbDnsName:
+    Value: !GetAtt ECSLoadBalancer.DNSName
+    Export:
+      Name: !Join ['-', [!Ref environment, 'ecs', !Ref clusterName, 'alb', 'dns-name']]
+
+  AlbListenerArn:
+    Value: !Ref ECSLoadBalancerListener
+    Export:
+      Name: !Join ['-', [!Ref environment, 'ecs', !Ref clusterName, 'alb', 'listner', 'arn']]
+
+  AlbSecurityGroupId:
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Join ['-', [!Ref environment, 'ecs', !Ref clusterName, 'alb', 'sg', 'id']]
+
+  EcsClusterArn:
+    Value: !GetAtt ECSCluster.Arn
+    Export:
+      Name: !Join ['-', [!Ref environment, !Ref clusterName, 'cluster', 'arn']]
+
+  EcsServiceSecurityGroupId:
+    Value: !Ref ECSServiceSecurityGroup
+    Export:
+      Name: !Join ['-', [!Ref environment, 'ecs', !Ref clusterName, 'service', 'sg', 'id']]
+
+
+
+

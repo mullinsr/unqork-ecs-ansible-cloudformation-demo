@@ -1,0 +1,83 @@
+- name: SOA on ECS Demo
+  hosts: localhost
+
+  tasks:
+
+    - name: Create default ECS IAM role.
+      cloudformation:
+        stack_name: "{{inventory_hostname}}-ecs-default-iam-Rob"
+        state: "present"
+        region: "us-east-1"
+        disable_rollback: true
+        template: "cf-ecs-default-iam.yaml"
+      register: ecsIamStack
+
+    - name: Create new ECS cluster.
+      cloudformation:
+        stack_name: "{{inventory_hostname}}-ecs-cluster-unqork-Rob"
+        state: "present"
+        region: "us-east-1"
+        disable_rollback: true
+        template: "cf-ecs-cluster.yaml"
+        template_parameters:
+          environment: dev
+          clusterName: unqork
+          vpcId: vpc-5182082b
+          publicSubnetIds: "subnet-18a9d77f,subnet-b2eda89c"
+      register: ecsClusterStack
+
+    - name: Create 'unqork' ECS service.
+      cloudformation:
+        stack_name: "{{inventory_hostname}}-ecs-service-unqork-Rob"
+        state: "present"
+        region: "us-east-1"
+        disable_rollback: false
+        template: "cf-ecs-service.yaml"
+        template_parameters:
+          environment: dev
+          ecsClusterArn: "{{ecsClusterStack.stack_outputs.EcsClusterArn}}"
+          ecsClusterAlbListenerArn: "{{ecsClusterStack.stack_outputs.AlbListenerArn}}"
+          ecsServiceName: unqork
+          ecsServicePath: /unqork
+          ecsServicePriority: "1"
+          ecsServiceCpuLimit: "256"
+          ecsServiceMemoryLimit: "1GB"
+          ecsServiceImage: sudosoul/unqork-service
+          ecsServiceTaskContainerPort: "3000"
+          ecsServiceTaskDesiredCount: "2"
+          ecsServiceSubnetIds: "subnet-18a9d77f,subnet-b2eda89c"
+          ecsServiceSecurityGroupIds: "{{ecsClusterStack.stack_outputs.EcsServiceSecurityGroupId}}"
+          ecsServiceHealthCheckPath: /health
+          vpcId: vpc-5182082b
+      register: ecsUnqorkServiceStack
+
+    - name: Create 'qork' ECS service.
+      cloudformation:
+        stack_name: "{{inventory_hostname}}-ecs-service-qork-Rob"
+        state: "present"
+        region: "us-east-1"
+        disable_rollback: false
+        template: "cf-ecs-service.yaml"
+        template_parameters:
+          environment: dev
+          ecsClusterArn: "{{ecsClusterStack.stack_outputs.EcsClusterArn}}"
+          ecsClusterAlbListenerArn: "{{ecsClusterStack.stack_outputs.AlbListenerArn}}"
+          ecsServiceName: qork
+          ecsServicePath: /qork
+          ecsServicePriority: "2"
+          ecsServiceCpuLimit: "256"
+          ecsServiceMemoryLimit: "1GB"
+          ecsServiceImage: sudosoul/qork-service
+          ecsServiceTaskContainerPort: "3000"
+          ecsServiceTaskDesiredCount: "2"
+          ecsServiceSubnetIds: "subnet-18a9d77f,subnet-b2eda89c"
+          ecsServiceSecurityGroupIds: "{{ecsClusterStack.stack_outputs.EcsServiceSecurityGroupId}}"
+          ecsServiceHealthCheckPath: /health
+          vpcId: vpc-5182082b
+      register: ecsQorkServiceStack
+
+    - name: Show ECS Cluster ALB Host Name
+      debug: msg="http://{{ecsClusterStack.stack_outputs.AlbDnsName}}"
+
+
+

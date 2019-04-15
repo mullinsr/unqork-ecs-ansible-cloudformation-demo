@@ -1,0 +1,209 @@
+################################################################
+# This CF template creates a new ECS service for the
+# specified ECS cluster. It creates the following resources
+#
+# 1. ALB Target Group the service will be registered to. 
+#
+# 2. ALB ListenerRule the service will receive traffic from.
+#
+# 3. The TaskDefinition containing the service container specs. 
+#
+# 4. The Service Resource. 
+#
+################################################################
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  environment:
+    Type: String
+    Default: dev
+    Description: The environment associated with this service. Default is dev.
+
+  ecsClusterArn:
+    Type: String
+    Description: The ARN of the ECS cluster to assign this service to. 
+
+  ecsClusterAlbListenerArn:
+    Type: String
+    Description: The ARN of the cluster's HTTP listener.
+
+  ecsServiceName:
+    Type: String
+    Description: The name of the service to create. 
+
+  ecsServicePath:
+    Type: String
+    Description: The URI Path this service should receive requests from. 
+
+  ecsServicePriority:
+    Type: Number
+    Description: The priority to assign to this service within the ALB listener. 
+
+  ecsServiceCpuLimit:
+    Type: String
+    Description: The service CPU limit. 
+
+  ecsServiceMemoryLimit:
+    Type: String
+    Description: The service memory limit. 
+
+  ecsServiceImage:
+    Type: String
+    Description: The Docker image to use for the service.
+
+  ecsServiceTaskContainerPort:
+    Type: Number
+    Description: The service container port.
+
+  ecsServiceTaskProtocol:
+    Type: String
+    Default: tcp
+    Description: The service protocol (tcp or udp). Default is tcp. 
+
+  ecsServiceTaskDesiredCount:
+    Type: Number
+    Description: The desired number of task instances to run.
+
+  ecsServiceSubnetIds:
+    Type: CommaDelimitedList
+    Description: The subnet IDs to launch the service into. 
+
+  ecsServiceSecurityGroupIds:
+    Type: CommaDelimitedList
+    Description: The security group IDs to assign to the service. 
+
+  vpcId:
+    Type: String
+    Description: The VPC ID to launch the service into. 
+
+  ecsServiceHealthCheckInterval:
+    Type: Number
+    Default: 10
+    Description: The seconds between each health check attempt.
+
+  ecsServiceHealthCheckPath:
+    Type: String
+    Default: /
+    Description: The service path to receive health checks. 
+
+  ecsServiceHealthCheckProtocol:
+    Type: String
+    Default: HTTP
+    Description: The service protocol to receive health checks over. 
+
+  ecsServiceHealthCheckTimeout:
+    Type: Number
+    Description: The number of seconds a health check will wait for a response before it fails. 
+    Default: 3
+
+  ecsServiceHealthyThresholdCount:
+    Type: Number
+    Description: The number of successful health checks before a service is considered healthy. 
+    Default: 3
+
+  ecsServiceUnhealthyThresholdCount:
+    Type: Number
+    Description: The number of failed health checks before a service is considered unhealthy. 
+    Default: 2
+
+  ecsServiceHealthCheckSuccessStatusCode:
+    Type: Number
+    Description: The HTTP status code of a successul health check. 
+    Default: 200
+
+  ecsServiceHealthCheckGracePeriod:
+    Type: Number
+    Description: The number of seconds to wait after a service launches before sending health checks. 
+    Default: 60
+
+Resources:
+
+  # BEGIN ALB TARGET GROUP RESOURCE
+  ECSLoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: !Ref ecsServiceHealthCheckInterval
+      HealthCheckPath: !Ref ecsServiceHealthCheckPath
+      HealthCheckPort: !Ref ecsServiceTaskContainerPort
+      HealthCheckProtocol: !Ref ecsServiceHealthCheckProtocol
+      HealthCheckTimeoutSeconds: !Ref ecsServiceHealthCheckTimeout
+      HealthyThresholdCount: !Ref ecsServiceHealthyThresholdCount
+      Matcher: 
+        HttpCode: !Ref ecsServiceHealthCheckSuccessStatusCode
+      Name: !Join ['-', [!Ref environment, 'ecs', !Ref ecsServiceName, 'tg']]
+      Port: !Ref ecsServiceTaskContainerPort
+      Protocol: HTTP
+      TargetType: ip
+      UnhealthyThresholdCount: !Ref ecsServiceUnhealthyThresholdCount
+      VpcId: !Ref vpcId
+
+  # BEGIN ALB LISTENER RULE RESOURCE
+  ECSServiceListenerRule:
+    # The listener rule that the service target group will register to.
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: ECSLoadBalancerTargetGroup
+    Properties:
+      Actions:
+        - 
+          Type: forward
+          TargetGroupArn: !Ref ECSLoadBalancerTargetGroup
+      Conditions:
+        - 
+          Field: path-pattern
+          Values:
+            - !Ref ecsServicePath 
+      ListenerArn: !Ref ecsClusterAlbListenerArn
+      Priority: !Ref ecsServicePriority
+
+  # BEGIN ECS SERVICE TASK DEFINITION RESOURCE
+  ECSServiceTaskDefinition:
+    # This is the Docker container specs associated with the ECS Service.
+    # This service is just using 1 Docker image, so the task definition specs 
+    # are tightly coupled to the ECS Service specs. 
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Cpu: !Ref ecsServiceCpuLimit
+      ExecutionRoleArn: !ImportValue ecs-default-task-execution-role-arn
+      Memory: !Ref ecsServiceMemoryLimit
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ContainerDefinitions:
+        - 
+          Image: !Ref ecsServiceImage
+          Name: !Ref ecsServiceName
+          PortMappings:
+            -
+              HostPort: !Ref ecsServiceTaskContainerPort
+              ContainerPort: !Ref ecsServiceTaskContainerPort
+              Protocol: !Ref ecsServiceTaskProtocol
+
+  # BEGIN ECS SERVICE RESOURCE
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: 
+      - ECSServiceTaskDefinition
+      - ECSLoadBalancerTargetGroup
+      - ECSServiceListenerRule
+    Properties: 
+      Cluster: !Ref ecsClusterArn
+      DesiredCount: !Ref ecsServiceTaskDesiredCount
+      HealthCheckGracePeriodSeconds: !Ref ecsServiceHealthCheckGracePeriod
+      LaunchType: FARGATE
+      LoadBalancers:
+        - 
+          ContainerName: !Ref ecsServiceName
+          ContainerPort: !Ref ecsServiceTaskContainerPort
+          TargetGroupArn: !Ref ECSLoadBalancerTargetGroup
+      NetworkConfiguration: 
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref ecsServiceSubnetIds
+          SecurityGroups: !Ref ecsServiceSecurityGroupIds
+      SchedulingStrategy: REPLICA
+      ServiceName: !Ref ecsServiceName
+      TaskDefinition: !Ref ECSServiceTaskDefinition
+
+    
