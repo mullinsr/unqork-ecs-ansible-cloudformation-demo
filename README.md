@@ -62,7 +62,7 @@ The ‘unqork’ service deployed into the ECS cluster.
 
 1. Clone this repo
 
-      `git clone && cd unqork-ecs-ansible-cloudformation-demo/`
+      `git clone https://github.com/mullinsr/unqork-ecs-ansible-cloudformation-demo.git && cd unqork-ecs-ansible-cloudformation-demo/`
 
 2. Ensure you are working off the correct branch
 
@@ -74,7 +74,7 @@ The ‘unqork’ service deployed into the ECS cluster.
       `export AWS_SECRET_ACCESS_KEY=secretKey`
       `export AWS_DEFAULT_REGION=us-east-1`
 
-4. Ensure you have AWS access & confirm that there are no existing *active* CloudFormation stacks.
+4. Ensure you have AWS access & confirm that there are no existing *active* (StackStatus) CloudFormation stacks.
 
       `aws cloudformation list-stacks`
 
@@ -90,9 +90,13 @@ The hostname should look something like this
 
 6. Once you have the hostname, confirm that the execution was successful by navigating to the *qork* service in your web browser.
 
-      `hostname/qork`
+      `${hostname}/qork`
+
+      Example: `http://dev-ecs-unqork-alb-123456789.us-east-1.elb.amazonaws.com/qork`
 
 7. Does it work? If so, please, have a drink on me :-)
 
-      `hostname/unqork`
+      `${hostname}/unqork`
+
+      Example: `http://dev-ecs-unqork-alb-123456789.us-east-1.elb.amazonaws.com/unqork`
 
