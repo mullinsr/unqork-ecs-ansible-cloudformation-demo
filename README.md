@@ -83,7 +83,10 @@ The ‘unqork’ service deployed into the ECS cluster.
       `ansible-playbook playbook.yml`
 
 
-\*\*\* **Upon successful playback execution, Ansible will print the hostname of the ALB that was assigned to the ECS cluster -- take note of this `hostname`.** \*\*\*
+\*\*\* **Upon successful playback execution, Ansible will print the hostname of the ALB that was assigned to the ECS cluster -- take note of this `hostname`.** \*\*\* 
+
+The hostname should look something like this
+>http://dev-ecs-unqork-alb-123456789.us-east-1.elb.amazonaws.com
 
 6. Once you have the hostname, confirm that the execution was successful by navigating to the *qork* service in your web browser.
 
